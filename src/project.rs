@@ -73,6 +73,7 @@ impl Project {
     }
 
     fn read_tags(path: &Path) -> Result<HashMap<String, String>> {
+        // TODO: Allow multiple values for any tag
         let tags_file = File::open(&path)?;
         let tags_reader = BufReader::new(tags_file);
         let mut tags = HashMap::new();
