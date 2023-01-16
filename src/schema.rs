@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Schemas {
-    default_tag_values: HashMap<String, String>,
     pub(crate) schemas: Vec<Schema>,
+    default_tag_values: HashMap<String, String>,
 }
 
 impl Schemas {
