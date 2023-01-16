@@ -34,6 +34,7 @@ enum Commands {
     Move {
         source: PathBuf
     }
+    // TODO: Add tag command to easily manage existing tags
 }
 
 fn main() {

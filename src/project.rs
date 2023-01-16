@@ -31,6 +31,7 @@ impl Project {
         path.pop();
         path.push(SPIDERMAN_PROJECT_INFO_FILE_NAME);
         File::create(&path)?;
+        // TODO: fill with tags extracted from current directory, if we're in a view
         open_in_editor(&path);
         let tags = Self::read_tags(&path)?;
 

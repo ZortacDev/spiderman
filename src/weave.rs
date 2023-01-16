@@ -3,6 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 use crate::{Environment, Project};
 
+// FIXME: Handle already existing directories or duplicate names when weaving
+
 pub fn remove_symlinks() -> Result<()> {
     let env = Environment::get();
 
