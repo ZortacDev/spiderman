@@ -1,19 +1,18 @@
+use crate::file_utils::open_in_editor;
+use crate::Environment;
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fs::{DirEntry, File, ReadDir};
 use std::io::{BufRead, BufReader, Write};
 use std::iter::FilterMap;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-use anyhow::{anyhow, Result};
-use uuid::fmt::Hyphenated;
-use crate::Environment;
-use crate::file_utils::open_in_editor;
 
 #[derive(Debug, Clone)]
 pub struct Project {
     pub uuid: Uuid,
     pub name: String,
-    pub tags: HashMap<String, Vec<String>>
+    pub tags: HashMap<String, Vec<String>>,
 }
 
 const SPIDERMAN_PROJECT_INFO_FILE_NAME: &'static str = "spiderman.tags";
@@ -34,14 +33,16 @@ impl Project {
         let current_dir = std::env::current_dir()?;
 
         // If we're in a directory that matches a schema, pre-populate the tags file
-        if let Some(tags) = env.schema.schemas
+        if let Some(tags) = env
+            .schema
+            .schemas
             .iter()
             .map(|s| s.match_with_dir(&current_dir))
             .find_map(|t| t.unwrap_or(None))
         {
             for (tag, value) in tags {
                 let line = format!("{}:{}\r\n", tag, value);
-                tag_file.write_all(line.as_bytes());
+                tag_file.write_all(line.as_bytes())?;
             }
         }
         tag_file.sync_data()?;
@@ -53,12 +54,15 @@ impl Project {
         Ok(Self {
             uuid,
             name: name.to_owned(),
-            tags
+            tags,
         })
     }
 
     pub fn open(path: &Path) -> Result<Self> {
-        let uuid_str = path.file_name().ok_or(anyhow!("Invalid project path"))?.to_string_lossy();
+        let uuid_str = path
+            .file_name()
+            .ok_or(anyhow!("Invalid project path"))?
+            .to_string_lossy();
         let uuid = Uuid::parse_str(uuid_str.as_ref())?;
 
         let mut dir = path.to_path_buf();
@@ -67,30 +71,35 @@ impl Project {
             let tags = Self::read_tags(&dir)?;
 
             dir.pop();
-            let directory_contents: Vec<_> = dir.read_dir()?
+            let directory_contents: Vec<_> = dir
+                .read_dir()?
                 .filter_map(|e| e.ok())
                 .filter(|d| d.file_name().to_string_lossy() != SPIDERMAN_PROJECT_INFO_FILE_NAME)
                 .collect();
 
             if directory_contents.len() == 1 {
-                let name = directory_contents[0].file_name().to_string_lossy().to_string();
-                Ok(Self {
-                    uuid,
-                    name,
-                    tags
-                })
+                let name = directory_contents[0]
+                    .file_name()
+                    .to_string_lossy()
+                    .to_string();
+                Ok(Self { uuid, name, tags })
             } else {
-                Err(anyhow!("More than one subdirectory in project UUID directory"))
+                Err(anyhow!(
+                    "More than one subdirectory in project UUID directory"
+                ))
             }
         } else {
-            Err(anyhow!("No spiderman tags file in UUID directory: {}", dir.to_string_lossy()))
-        }
+            Err(anyhow!(
+                "No spiderman tags file in UUID directory: {}",
+                dir.to_string_lossy()
+            ))
+        };
     }
 
     fn read_tags(path: &Path) -> Result<HashMap<String, Vec<String>>> {
         let tags_file = File::open(&path)?;
         let tags_reader = BufReader::new(tags_file);
-        let mut tag_map: HashMap<String, Vec<String>>= HashMap::new();
+        let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
         for line in tags_reader.lines() {
             let line = line?;
             let mut tags = line.split(':');
@@ -114,16 +123,22 @@ impl Project {
         let map_to_project = Box::new(|d: DirEntry| {
             let path = d.path();
             match Self::open(&path) {
-                Ok(p) => {Some(p)}
+                Ok(p) => Some(p),
                 Err(e) => {
-                    eprintln!("WARNING: Ignoring project at {}: {}", path.to_string_lossy(), e);
+                    eprintln!(
+                        "WARNING: Ignoring project at {}: {}",
+                        path.to_string_lossy(),
+                        e
+                    );
                     None
                 }
             }
         }) as Box<dyn Fn(DirEntry) -> Option<Project>>;
 
         let env = Environment::get()?;
-        Ok(env.raw_storage_dir.read_dir()?
+        Ok(env
+            .raw_storage_dir
+            .read_dir()?
             .filter_map(map_to_option)
             .filter_map(map_to_project))
     }
@@ -153,10 +168,10 @@ impl Project {
         }
 
         match project_canonical_path {
-            None => {Ok(None)}
-            Some(path) => {
-                Ok(Some(Self::open(path.parent().expect("No parent directory"))?))
-            }
+            None => Ok(None),
+            Some(path) => Ok(Some(Self::open(
+                path.parent().expect("No parent directory"),
+            )?)),
         }
     }
 
@@ -166,11 +181,17 @@ impl Project {
         tags_file.push(SPIDERMAN_PROJECT_INFO_FILE_NAME);
 
         if !(tags_file.exists() && tags_file.is_file()) {
-            Err(anyhow!("Malformed project directory, no tag description file in {}", tags_file.parent().unwrap().to_string_lossy()))
+            Err(anyhow!(
+                "Malformed project directory, no tag description file in {}",
+                tags_file.parent().unwrap().to_string_lossy()
+            ))
         } else {
             Ok(tags_file)
         }
     }
 }
 
-pub type ProjectIterator = FilterMap<FilterMap<ReadDir, Box<dyn Fn(std::io::Result<DirEntry>) -> Option<DirEntry>>>, Box<dyn Fn(DirEntry) -> Option<Project>>>;
+pub type ProjectIterator = FilterMap<
+    FilterMap<ReadDir, Box<dyn Fn(std::io::Result<DirEntry>) -> Option<DirEntry>>>,
+    Box<dyn Fn(DirEntry) -> Option<Project>>,
+>;

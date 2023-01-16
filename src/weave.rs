@@ -1,8 +1,7 @@
-use std::ffi::OsStr;
-use std::fs::DirEntry;
-use std::path::{Path, PathBuf};
-use anyhow::Result;
 use crate::{Environment, Project};
+use anyhow::Result;
+use std::fs::DirEntry;
+use std::path::Path;
 
 pub fn remove_symlinks() -> Result<()> {
     let env = Environment::get()?;
@@ -10,9 +9,11 @@ pub fn remove_symlinks() -> Result<()> {
     let base_path = &env.base_path;
     let spiderman_dir = &env.spiderman_dir;
 
-    for directory in base_path.read_dir()?
+    for directory in base_path
+        .read_dir()?
         .filter_map(|d| d.ok())
-        .filter(|d| d.path() != *spiderman_dir) {
+        .filter(|d| d.path() != *spiderman_dir)
+    {
         if directory.metadata().is_ok_and(|m| m.is_dir()) {
             remove_symlinks_impl(&directory)?;
         }
@@ -26,7 +27,8 @@ fn remove_symlinks_impl(dir: &DirEntry) -> Result<()> {
         let path = entry.path();
         if path.is_symlink() {
             let canonical_path = entry.path().canonicalize().unwrap();
-            let canonical_raw_data_dir_path = Environment::get()?.raw_storage_dir.canonicalize().unwrap();
+            let canonical_raw_data_dir_path =
+                Environment::get()?.raw_storage_dir.canonicalize().unwrap();
 
             if canonical_path.starts_with(canonical_raw_data_dir_path) {
                 // Entry is managed by spiderman (points into raw data directory)
@@ -34,7 +36,6 @@ fn remove_symlinks_impl(dir: &DirEntry) -> Result<()> {
             }
         } else if path.is_dir() {
             remove_symlinks_impl(&entry)?;
-
         }
     }
 
@@ -47,16 +48,21 @@ pub fn remove_empty_directories() -> Result<()> {
     let base_path = &env.base_path;
     let spiderman_dir = &env.spiderman_dir;
 
-    for directory in base_path.read_dir()?
+    for directory in base_path
+        .read_dir()?
         .filter_map(|d| d.ok())
-        .filter(|d| d.path() != *spiderman_dir) {
+        .filter(|d| d.path() != *spiderman_dir)
+    {
         if directory.metadata().is_ok_and(|m| m.is_dir()) {
             remove_empty_directories_impl(&directory)?;
             let path = directory.path();
             if path.read_dir()?.next().is_none() {
                 std::fs::remove_dir(path)?;
             } else {
-                eprintln!("Warning: directory {} is not empty after removing all the symlinks!", path.to_string_lossy());
+                eprintln!(
+                    "Warning: directory {} is not empty after removing all the symlinks!",
+                    path.to_string_lossy()
+                );
             }
         }
     }
@@ -73,10 +79,16 @@ fn remove_empty_directories_impl(dir: &DirEntry) -> Result<()> {
             if path.read_dir()?.next().is_none() {
                 std::fs::remove_dir(path)?;
             } else {
-                eprintln!("Warning: directory {} is not empty after removing all the symlinks!", path.to_string_lossy());
+                eprintln!(
+                    "Warning: directory {} is not empty after removing all the symlinks!",
+                    path.to_string_lossy()
+                );
             }
         } else {
-            eprintln!("Warning: {} is not a directory or symlink and should not be here!", path.to_string_lossy());
+            eprintln!(
+                "Warning: {} is not a directory or symlink and should not be here!",
+                path.to_string_lossy()
+            );
         }
     }
 
@@ -90,13 +102,17 @@ pub fn construct_view_tree() -> Result<()> {
         let raw_data_path = project.get_project_raw_data_path()?;
 
         for mut link_target in env.schema.fill(&project)? {
-            std::fs::create_dir_all(link_target.parent().unwrap());
+            std::fs::create_dir_all(link_target.parent().unwrap())?;
 
             // Add a counter for duplicate link targets
             let mut counter = 1;
             while link_target.exists() {
                 if counter == 1 && link_target.extension().is_some() {
-                    link_target.set_extension(format!("{}.{}", link_target.extension().unwrap().to_string_lossy(), counter));
+                    link_target.set_extension(format!(
+                        "{}.{}",
+                        link_target.extension().unwrap().to_string_lossy(),
+                        counter
+                    ));
                 } else {
                     link_target.set_extension(format!("{}", counter));
                 }

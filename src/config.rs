@@ -1,12 +1,12 @@
+use crate::file_utils::create_or_open_file_with_dirs;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use crate::file_utils::create_or_open_file_with_dirs;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub default_project_dir: PathBuf
+    pub default_project_dir: PathBuf,
 }
 
 const CONFIG_PATH: &'static str = "~/.config/spiderman/config.toml";
@@ -15,7 +15,10 @@ const DEFAULT_PROJECT_DIR: &'static str = "~/spiderman_projects";
 impl Default for Config {
     fn default() -> Self {
         Self {
-            default_project_dir: Path::new(&shellexpand::full(DEFAULT_PROJECT_DIR).unwrap().to_string()).to_path_buf()
+            default_project_dir: Path::new(
+                &shellexpand::full(DEFAULT_PROJECT_DIR).unwrap().to_string(),
+            )
+            .to_path_buf(),
         }
     }
 }
@@ -38,4 +41,3 @@ impl Config {
         Ok(toml::de::from_str(&config_contents)?)
     }
 }
-

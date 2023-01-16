@@ -1,13 +1,11 @@
+use crate::config::Config;
+use crate::schema::Schemas;
+use anyhow::{anyhow, Result};
+use once_cell::sync::OnceCell;
 use std::env::current_dir;
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use once_cell::sync::OnceCell;
-use crate::config::Config;
-use crate::schema::{Schemas};
-use anyhow::{anyhow, Result};
 
 const SPIDERMAN_DIR_NAME: &'static str = ".spiderman";
 const RAW_STORAGE_DIR_NAME: &'static str = "raw";
@@ -19,7 +17,7 @@ pub struct Environment {
     pub spiderman_dir: PathBuf,
     pub raw_storage_dir: PathBuf,
     pub schema: Schemas,
-    pub config: Config
+    pub config: Config,
 }
 
 static ENVIRONMENT: OnceCell<Environment> = OnceCell::new();
@@ -34,30 +32,49 @@ impl Environment {
 
         if !Self::is_valid_spiderman_dir(&base_path) {
             if !base_path.exists() {
-                std::fs::create_dir_all(base_path.clone()).expect("Failed to create project directory");
+                std::fs::create_dir_all(base_path.clone())
+                    .expect("Failed to create project directory");
             } else {
                 if !base_path.read_dir().is_ok_and(|mut d| d.next().is_none()) {
                     // directory is not empty
-                    return Err(anyhow!("Chosen base path {} is not empty!", base_path.to_string_lossy()));
+                    return Err(anyhow!(
+                        "Chosen base path {} is not empty!",
+                        base_path.to_string_lossy()
+                    ));
                 }
             }
-            Self::create_spiderman_dir(&base_path);
+            Self::create_spiderman_dir(&base_path)?;
         }
 
-        let spiderman_dir = {let mut d = base_path.clone(); d.push(SPIDERMAN_DIR_NAME); d};
-        let raw_storage_dir = {let mut d = spiderman_dir.clone(); d.push(RAW_STORAGE_DIR_NAME); d};
-        let schema_file_path = {let mut d = spiderman_dir.clone(); d.push(SCHEMA_FILE_NAME); d};
+        let spiderman_dir = {
+            let mut d = base_path.clone();
+            d.push(SPIDERMAN_DIR_NAME);
+            d
+        };
+        let raw_storage_dir = {
+            let mut d = spiderman_dir.clone();
+            d.push(RAW_STORAGE_DIR_NAME);
+            d
+        };
+        let schema_file_path = {
+            let mut d = spiderman_dir.clone();
+            d.push(SCHEMA_FILE_NAME);
+            d
+        };
         let mut schema_data = String::new();
-        File::open(schema_file_path).expect("Failed to open schema file.").read_to_string(&mut schema_data);
-        
-        let schema_file: Schemas = toml::de::from_str(&schema_data).expect("Failed to parse schema data.");
-        
+        File::open(schema_file_path)
+            .expect("Failed to open schema file.")
+            .read_to_string(&mut schema_data)?;
+
+        let schema_file: Schemas =
+            toml::de::from_str(&schema_data).expect("Failed to parse schema data.");
+
         Ok(Self {
             base_path,
             spiderman_dir,
             raw_storage_dir,
             schema: schema_file.into(),
-            config
+            config,
         })
     }
 
@@ -65,7 +82,10 @@ impl Environment {
         let current_dir = current_dir()?;
         assert!(current_dir.has_root());
 
-        Ok(current_dir.ancestors().find(|d| Self::is_valid_spiderman_dir(d)).map(|p| p.to_path_buf()))
+        Ok(current_dir
+            .ancestors()
+            .find(|d| Self::is_valid_spiderman_dir(d))
+            .map(|p| p.to_path_buf()))
     }
 
     pub fn is_valid_spiderman_dir(dir: &Path) -> bool {
@@ -100,4 +120,3 @@ impl Environment {
         ENVIRONMENT.get_or_try_init(Environment::new)
     }
 }
-
