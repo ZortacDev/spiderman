@@ -134,7 +134,7 @@ pub fn construct_view_tree() -> Result<()> {
 
 #[cfg(unix)]
 fn symlink_dir(source: &Path, dest: &Path) -> Result<()> {
-    std::os::unix::fs::symlink(raw_data_path, link_target)?;
+    std::os::unix::fs::symlink(source, dest)?;
 
     Ok(())
 }
