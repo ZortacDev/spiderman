@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use once_cell::sync::OnceCell;
 use crate::config::Config;
-use crate::schema::{SchemaFile, Schemas};
+use crate::schema::{Schemas};
 use anyhow::{anyhow, Result};
 
 const SPIDERMAN_DIR_NAME: &'static str = ".spiderman";
@@ -50,7 +50,7 @@ impl Environment {
         let mut schema_data = String::new();
         File::open(schema_file_path).expect("Failed to open schema file.").read_to_string(&mut schema_data);
         
-        let schema_file: SchemaFile = toml::de::from_str(&schema_data).expect("Failed to parse schema data.");
+        let schema_file: Schemas = toml::de::from_str(&schema_data).expect("Failed to parse schema data.");
         
         Ok(Self {
             base_path,
@@ -92,7 +92,7 @@ impl Environment {
         path.pop();
         path.push(SCHEMA_FILE_NAME);
         let mut schema_file = File::create(&path)?;
-        schema_file.write_all(&toml::ser::to_vec(&SchemaFile::default()).unwrap())?;
+        schema_file.write_all(&toml::ser::to_vec(&Schemas::default()).unwrap())?;
         Ok(())
     }
 

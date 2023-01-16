@@ -1,31 +1,18 @@
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::path::{Path, PathBuf};
 use clap::builder::TypedValueParser;
 use itertools::Itertools;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer, ser};
 use crate::{Environment, Project};
 use anyhow::{Error, Result};
+use serde::de::{EnumAccess, MapAccess, SeqAccess, Visitor};
 use crate::schema::SchemaPathComponent::Fixed;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct SchemaFile {
-    default_tag_values: HashMap<String, String>,
-    schemas: Vec<String>
-}
-
-#[derive(Debug)]
 pub struct Schemas {
-    pub default_tag_values: HashMap<String, String>,
-    pub schemas: Vec<Schema>
-}
-
-impl From<SchemaFile> for Schemas {
-    fn from(file: SchemaFile) -> Self {
-        Self {
-            default_tag_values: file.default_tag_values,
-            schemas: file.schemas.iter().map(|s| s.as_str().into()).collect()
-        }
-    }
+    default_tag_values: HashMap<String, String>,
+    pub(crate) schemas: Vec<Schema>
 }
 
 impl Schemas {
@@ -56,6 +43,42 @@ impl Schemas {
 #[derive(Debug)]
 pub struct Schema {
     components: Vec<SchemaPathComponent>
+}
+
+impl Serialize for Schema {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> where S: Serializer {
+        if let Some(string_repr) = self.components.iter()
+            .map(|c| match c {
+                SchemaPathComponent::Tag(t) => {format!("{{{}}}", t)}
+                Fixed(f) => {f.to_string()}
+            })
+            .intersperse("/".to_string())
+            .reduce(|s1, s2| s1 + &s2) {
+            serializer.serialize_str(&string_repr)
+        } else {
+            Err(ser::Error::custom("empty schema has no valid string representation"))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Schema {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error> where D: Deserializer<'de> {
+        deserializer.deserialize_str(SchemaVisitor)
+    }
+}
+
+struct SchemaVisitor;
+
+impl<'de> Visitor<'de> for SchemaVisitor {
+    type Value = Schema;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        formatter.write_str("a schema string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E> where E: serde::de::Error {
+        Ok(Schema::from(v))
+    }
 }
 
 impl From<&str> for Schema {
