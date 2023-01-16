@@ -30,7 +30,8 @@ pub fn open_in_editor(path: &Path) -> Result<bool> {
     if let Ok(editor) = std::env::var("EDITOR") {
         Command::new(editor)
             .arg(path.to_string_lossy().into_owned())
-            .output()?;
+            .spawn()?
+            .wait()?;
         Ok(true)
     } else {
         eprintln!("EDITOR environment variable not set, can't open project tags file.");
