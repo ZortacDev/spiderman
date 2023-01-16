@@ -7,12 +7,13 @@ use std::str::FromStr;
 use once_cell::sync::OnceCell;
 use crate::config::Config;
 use crate::schema::{SchemaFile, Schemas};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 const SPIDERMAN_DIR_NAME: &'static str = ".spiderman";
 const RAW_STORAGE_DIR_NAME: &'static str = "raw";
 const SCHEMA_FILE_NAME: &'static str = "schema.toml";
 
+#[derive(Debug)]
 pub struct Environment {
     pub base_path: PathBuf,
     pub spiderman_dir: PathBuf,
@@ -24,7 +25,7 @@ pub struct Environment {
 static ENVIRONMENT: OnceCell<Environment> = OnceCell::new();
 
 impl Environment {
-    fn new() -> Self {
+    fn new() -> Result<Self> {
         let config = Config::load().expect("Unable to load or create configuration file");
 
         let base_path = Self::get_parent_base_dir()
@@ -37,7 +38,7 @@ impl Environment {
             } else {
                 if !base_path.read_dir().is_ok_and(|mut d| d.next().is_none()) {
                     // directory is not empty
-                    panic!("Chosen base path {} is not empty!", base_path.to_string_lossy());
+                    return Err(anyhow!("Chosen base path {} is not empty!", base_path.to_string_lossy()));
                 }
             }
             Self::create_spiderman_dir(&base_path);
@@ -51,13 +52,13 @@ impl Environment {
         
         let schema_file: SchemaFile = toml::de::from_str(&schema_data).expect("Failed to parse schema data.");
         
-        Self {
+        Ok(Self {
             base_path,
             spiderman_dir,
             raw_storage_dir,
             schema: schema_file.into(),
             config
-        }
+        })
     }
 
     fn get_parent_base_dir() -> Result<Option<PathBuf>> {
@@ -95,8 +96,8 @@ impl Environment {
         Ok(())
     }
 
-    pub fn get() -> &'static Self {
-        ENVIRONMENT.get_or_init(Environment::new)
+    pub fn get() -> Result<&'static Self> {
+        ENVIRONMENT.get_or_try_init(Environment::new)
     }
 }
 

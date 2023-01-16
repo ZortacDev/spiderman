@@ -13,7 +13,7 @@ use crate::file_utils::open_in_editor;
 pub struct Project {
     pub uuid: Uuid,
     pub name: String,
-    pub tags: HashMap<String, String>
+    pub tags: HashMap<String, Vec<String>>
 }
 
 const SPIDERMAN_PROJECT_INFO_FILE_NAME: &'static str = "spiderman.tags";
@@ -22,7 +22,7 @@ impl Project {
     pub fn new(name: &str) -> Result<Self> {
         let uuid = Uuid::new_v4();
 
-        let env = Environment::get();
+        let env = Environment::get()?;
         let mut path = env.raw_storage_dir.clone();
         path.push(uuid.hyphenated().to_string());
         std::fs::create_dir(&path)?;
@@ -30,9 +30,24 @@ impl Project {
         std::fs::create_dir(&path)?;
         path.pop();
         path.push(SPIDERMAN_PROJECT_INFO_FILE_NAME);
-        File::create(&path)?;
-        // TODO: fill with tags extracted from current directory, if we're in a view
-        open_in_editor(&path);
+        let mut tag_file = File::create(&path)?;
+        let current_dir = std::env::current_dir()?;
+
+        // If we're in a directory that matches a schema, pre-populate the tags file
+        if let Some(tags) = env.schema.schemas
+            .iter()
+            .map(|s| s.match_with_dir(&current_dir))
+            .find_map(|t| t.unwrap_or(None))
+        {
+            for (tag, value) in tags {
+                let line = format!("{}:{}\r\n", tag, value);
+                tag_file.write_all(line.as_bytes());
+            }
+        }
+        tag_file.sync_data()?;
+        drop(tag_file); // Close the file
+
+        open_in_editor(&path)?;
         let tags = Self::read_tags(&path)?;
 
         Ok(Self {
@@ -72,18 +87,25 @@ impl Project {
         }
     }
 
-    fn read_tags(path: &Path) -> Result<HashMap<String, String>> {
-        // TODO: Allow multiple values for any tag
+    fn read_tags(path: &Path) -> Result<HashMap<String, Vec<String>>> {
         let tags_file = File::open(&path)?;
         let tags_reader = BufReader::new(tags_file);
-        let mut tags = HashMap::new();
+        let mut tag_map: HashMap<String, Vec<String>>= HashMap::new();
         for line in tags_reader.lines() {
-            if let Some((tag, value)) = line?.as_str().split_once(':') {
-                tags.insert(tag.to_string(), value.trim().to_string());
+            let line = line?;
+            let mut tags = line.split(':');
+            if let Some(tag) = tags.next() {
+                let tag = tag.trim().to_string();
+                let mut values = tags.map(|v| v.trim().to_string()).collect();
+                if let Some(tag_vec) = tag_map.get_mut(&tag) {
+                    tag_vec.append(&mut values);
+                } else {
+                    tag_map.insert(tag, values);
+                }
             }
         }
 
-        return Ok(tags);
+        return Ok(tag_map);
     }
 
     pub fn list() -> Result<ProjectIterator> {
@@ -100,20 +122,54 @@ impl Project {
             }
         }) as Box<dyn Fn(DirEntry) -> Option<Project>>;
 
-        let env = Environment::get();
+        let env = Environment::get()?;
         Ok(env.raw_storage_dir.read_dir()?
             .filter_map(map_to_option)
             .filter_map(map_to_project))
     }
 
-    pub fn get_project_raw_data_path(&self) -> PathBuf {
-        let env = Environment::get();
+    pub fn get_project_raw_data_path(&self) -> Result<PathBuf> {
+        let env = Environment::get()?;
         let mut path = env.raw_storage_dir.clone();
 
         path.push(self.uuid.hyphenated().to_string());
         path.push(&self.name);
 
-        return path;
+        return Ok(path);
+    }
+
+    pub fn get_current_project() -> Result<Option<Self>> {
+        let env = Environment::get()?;
+        let raw_storage_path = env.raw_storage_dir.canonicalize()?;
+        let current_path = std::path::absolute(std::env::current_dir()?)?;
+        let mut project_canonical_path = None;
+        for path in current_path.ancestors() {
+            if path.is_symlink() {
+                let canonical = path.canonicalize()?;
+                if canonical.starts_with(&raw_storage_path) {
+                    project_canonical_path = Some(canonical);
+                }
+            }
+        }
+
+        match project_canonical_path {
+            None => {Ok(None)}
+            Some(path) => {
+                Ok(Some(Self::open(path.parent().expect("No parent directory"))?))
+            }
+        }
+    }
+
+    pub fn get_tags_file_path(&self) -> Result<PathBuf> {
+        let mut tags_file = self.get_project_raw_data_path()?;
+        tags_file.pop();
+        tags_file.push(SPIDERMAN_PROJECT_INFO_FILE_NAME);
+
+        if !(tags_file.exists() && tags_file.is_file()) {
+            Err(anyhow!("Malformed project directory, no tag description file in {}", tags_file.parent().unwrap().to_string_lossy()))
+        } else {
+            Ok(tags_file)
+        }
     }
 }
 

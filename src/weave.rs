@@ -1,12 +1,11 @@
+use std::ffi::OsStr;
 use std::fs::DirEntry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use anyhow::Result;
 use crate::{Environment, Project};
 
-// FIXME: Handle already existing directories or duplicate names when weaving
-
 pub fn remove_symlinks() -> Result<()> {
-    let env = Environment::get();
+    let env = Environment::get()?;
 
     let base_path = &env.base_path;
     let spiderman_dir = &env.spiderman_dir;
@@ -27,11 +26,10 @@ fn remove_symlinks_impl(dir: &DirEntry) -> Result<()> {
         let path = entry.path();
         if path.is_symlink() {
             let canonical_path = entry.path().canonicalize().unwrap();
-            let canonical_raw_data_dir_path = Environment::get().raw_storage_dir.canonicalize().unwrap();
+            let canonical_raw_data_dir_path = Environment::get()?.raw_storage_dir.canonicalize().unwrap();
 
-            if canonical_path > canonical_raw_data_dir_path {
+            if canonical_path.starts_with(canonical_raw_data_dir_path) {
                 // Entry is managed by spiderman (points into raw data directory)
-                //println!("DEBUG: Would remove file/symlink {}", path.to_string_lossy());
                 remove_symlink_dir(&path)?;
             }
         } else if path.is_dir() {
@@ -44,7 +42,7 @@ fn remove_symlinks_impl(dir: &DirEntry) -> Result<()> {
 }
 
 pub fn remove_empty_directories() -> Result<()> {
-    let env = Environment::get();
+    let env = Environment::get()?;
 
     let base_path = &env.base_path;
     let spiderman_dir = &env.spiderman_dir;
@@ -85,16 +83,32 @@ fn remove_empty_directories_impl(dir: &DirEntry) -> Result<()> {
     Ok(())
 }
 
-
-
 pub fn construct_view_tree() -> Result<()> {
-    let env = Environment::get();
+    let env = Environment::get()?;
 
     for project in Project::list()? {
-        let raw_data_path = project.get_project_raw_data_path();
+        let raw_data_path = project.get_project_raw_data_path()?;
 
-        for link_target in env.schema.fill(&project) {
+        for mut link_target in env.schema.fill(&project)? {
             std::fs::create_dir_all(link_target.parent().unwrap());
+
+            // Add a counter for duplicate link targets
+            let mut counter = 1;
+            while link_target.exists() {
+                if counter == 1 && link_target.extension().is_some() {
+                    link_target.set_extension(format!("{}.{}", link_target.extension().unwrap().to_string_lossy(), counter));
+                } else {
+                    link_target.set_extension(format!("{}", counter));
+                }
+                counter += 1;
+            }
+
+            if counter != 1 {
+                eprintln!("Warning: Could not link project with UUID {} to proper target, as that target already exists. Linked to {} instead.",
+                          project.uuid.hyphenated().to_string(),
+                          link_target.to_string_lossy());
+            }
+
             symlink_dir(&raw_data_path, &link_target)?;
         }
     }

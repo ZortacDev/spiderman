@@ -25,11 +25,13 @@ pub fn create_or_open_file_with_dirs<B>(path: &Path, default_contents: impl FnOn
     }
 }
 
-pub fn open_in_editor(path: &Path) {
+pub fn open_in_editor(path: &Path) -> Result<bool> {
     if let Ok(editor) = std::env::var("EDITOR") {
-        Command::new(editor).arg(path.to_string_lossy().into_owned()).output().expect("Failed to start Editor");
+        Command::new(editor).arg(path.to_string_lossy().into_owned()).output()?;
+        Ok(true)
     } else {
         eprintln!("EDITOR environment variable not set, can't open project tags file.");
-        eprintln!("Please edit {} manually!", path.to_string_lossy());
+        eprintln!("Please edit {} manually and then run spiderman weave.", path.to_string_lossy());
+        Ok(false)
     }
 }
