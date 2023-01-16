@@ -82,7 +82,15 @@ impl<'de> Visitor<'de> for SchemaVisitor {
 }
 
 impl From<&str> for Schema {
-    fn from(value: &str) -> Self {
+    fn from(mut value: &str) -> Self {
+        if value.starts_with('/') {
+            value = &value[1..];
+        }
+
+        if value.ends_with('/') {
+            value = &value[..value.len() - 1];
+        }
+
         let components: Vec<SchemaPathComponent> = value.split('/').map(|s| {
             if s.starts_with('{') && s.ends_with('}') {
                 SchemaPathComponent::Tag(s[1..s.len()-1].to_string())
