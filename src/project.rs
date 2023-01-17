@@ -1,4 +1,4 @@
-use crate::file_utils::open_in_editor;
+use crate::file_utils::{current_dir_with_symlinks, open_in_editor};
 use crate::Environment;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -30,7 +30,7 @@ impl Project {
         path.pop();
         path.push(SPIDERMAN_PROJECT_INFO_FILE_NAME);
         let mut tag_file = File::create(&path)?;
-        let current_dir = std::env::current_dir()?;
+        let current_dir = current_dir_with_symlinks()?;
 
         // If we're in a directory that matches a schema, pre-populate the tags file
         if let Some(tags) = env
@@ -156,7 +156,7 @@ impl Project {
     pub fn get_current_project() -> Result<Option<Self>> {
         let env = Environment::get()?;
         let raw_storage_path = env.raw_storage_dir.canonicalize()?;
-        let current_path = std::path::absolute(std::env::current_dir()?)?;
+        let current_path = current_dir_with_symlinks()?;
         let mut project_canonical_path = None;
         for path in current_path.ancestors() {
             if path.is_symlink() {

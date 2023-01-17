@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::fs::File;
 use std::io::{ErrorKind, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn create_or_open_file_with_dirs<B>(
@@ -40,5 +40,13 @@ pub fn open_in_editor(path: &Path) -> Result<bool> {
             path.to_string_lossy()
         );
         Ok(false)
+    }
+}
+
+pub fn current_dir_with_symlinks() -> Result<PathBuf> {
+    if let Ok(pwd) = std::env::var("PWD") {
+        Ok(PathBuf::from(pwd))
+    } else {
+        Ok(std::env::current_dir()?)
     }
 }
