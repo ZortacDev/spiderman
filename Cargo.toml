@@ -1,6 +1,6 @@
 [package]
 name = "spiderman-project-manager"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["Moritz F. Kuntze <spiderman@zortac.net>"]
 description = "The Weaving Project Manager"
