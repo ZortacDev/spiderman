@@ -110,7 +110,7 @@ impl Project {
                     continue;
                 }
 
-                let mut values = tags.map(|v| v.trim().to_string()).collect();
+                let mut values: Vec<_> = tags.map(|v| v.trim().to_string()).collect();
                 if values.is_empty() {
                     continue;
                 }
