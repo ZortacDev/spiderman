@@ -98,6 +98,7 @@ impl Project {
 
     fn read_tags(path: &Path) -> Result<HashMap<String, Vec<String>>> {
         let tags_file = File::open(&path)?;
+        tags_file.sync_data()?;
         let tags_reader = BufReader::new(tags_file);
         let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
         for line in tags_reader.lines() {
