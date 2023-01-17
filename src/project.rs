@@ -106,7 +106,15 @@ impl Project {
             let mut tags = line.split(':');
             if let Some(tag) = tags.next() {
                 let tag = tag.trim().to_string();
+                if tag.is_empty() {
+                    continue;
+                }
+
                 let mut values = tags.map(|v| v.trim().to_string()).collect();
+                if values.is_empty() {
+                    continue;
+                }
+
                 if let Some(tag_vec) = tag_map.get_mut(&tag) {
                     tag_vec.append(&mut values);
                 } else {
